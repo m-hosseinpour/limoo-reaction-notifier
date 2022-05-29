@@ -6,11 +6,13 @@ import ir.mahdihmb.limoo_bot.core.CoreManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+
 public class Main {
 
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
-    public static void main(String[] args) throws LimooException {
+    public static void main(String[] args) throws LimooException, IOException {
         logger.info("--------------- Starting bot ---------------");
         CoreManager.initApp();
 

@@ -10,6 +10,7 @@ import ir.limoo.driver.event.LimooEvent;
 import ir.limoo.driver.event.LimooEventListener;
 import ir.limoo.driver.exception.LimooException;
 import ir.limoo.driver.util.JacksonUtils;
+import ir.mahdihmb.limoo_bot.core.ConfigService;
 import ir.mahdihmb.limoo_bot.entity.MessageWithReactions;
 import ir.mahdihmb.limoo_bot.entity.Reaction;
 import ir.mahdihmb.limoo_bot.util.GeneralUtils;
@@ -17,8 +18,9 @@ import ir.mahdihmb.limoo_bot.util.Requester;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 import static ir.mahdihmb.limoo_bot.util.GeneralUtils.empty;
 
@@ -28,11 +30,15 @@ public class LimooBot {
 
     private final String limooUrl;
     private final LimooDriver limooDriver;
-    private final Map<String, List<Reaction>> msgToReactions = new HashMap<>();
+    private final String storeFilePath;
 
-    public LimooBot(String limooUrl, String botUsername, String botPassword) throws LimooException {
+    private Map<String, List<Reaction>> msgToReactions;
+
+    public LimooBot(String limooUrl, String botUsername, String botPassword) throws LimooException, IOException {
         this.limooUrl = limooUrl;
         limooDriver = new LimooDriver(limooUrl, botUsername, botPassword);
+        storeFilePath = ConfigService.get("store.file.path");
+        loadCachedMessageReactions();
     }
 
     public void run() {
@@ -75,7 +81,7 @@ public class LimooBot {
     public void onNewMessage(MessageWithReactions message, Conversation conversation) {
         String threadRootId = message.getThreadRootId();
         try {
-            msgToReactions.put(message.getId(), Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>()));
+            cacheMessageReactions(message);
             if (message.getThreadRootId() == null && !limooDriver.getBot().getId().equals(message.getUserId())) {
                 Requester.followThread(message.getWorkspace(), threadRootId);
             }
@@ -97,10 +103,9 @@ public class LimooBot {
     public void onEditMessage(MessageWithReactions message) {
         try {
             String id = message.getId();
-            List<Reaction> messageReactions = Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>());
-            if (!msgToReactions.containsKey(id)) {
-                msgToReactions.put(id, messageReactions);
-            } else {
+            cacheMessageReactions(message);
+            if (msgToReactions.containsKey(id)) {
+                List<Reaction> messageReactions = Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>());
                 if (Arrays.deepEquals(msgToReactions.get(id).toArray(new Reaction[0]), messageReactions.toArray(new Reaction[0])))
                     return;
                 List<Reaction> addedReactions = new ArrayList<>(messageReactions);
@@ -139,6 +144,36 @@ public class LimooBot {
         } catch (Throwable e) {
             logger.error("", e);
         }
+    }
+
+    private void loadCachedMessageReactions() throws IOException {
+        msgToReactions = new HashMap<>();
+        File storeFile = new File(storeFilePath);
+        if (!storeFile.exists()) {
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(storeFile))) {
+                writer.write(JacksonUtils.serializeObjectAsString(msgToReactions));
+            }
+        } else {
+            StringBuilder fileContent = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new FileReader(storeFile))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    fileContent.append(line).append("\n");
+                }
+            }
+            JacksonUtils.deserializeIntoObject(JacksonUtils.convertStringToJsonNode(fileContent.toString()), msgToReactions);
+        }
+    }
+
+    private void cacheMessageReactions(MessageWithReactions message) {
+        msgToReactions.put(message.getId(), Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>()));
+        CompletableFuture.runAsync(() -> {
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(storeFilePath))) {
+                writer.write(JacksonUtils.serializeObjectAsString(msgToReactions));
+            } catch (IOException e) {
+                logger.error("Can't store msgToReactions cache", e);
+            }
+        });
     }
 
 }
