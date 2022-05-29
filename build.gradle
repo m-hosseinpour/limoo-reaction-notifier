@@ -1,0 +1,60 @@
+plugins {
+    id 'application'
+}
+apply plugin : 'java'
+
+repositories {
+    flatDir {
+        dirs 'lib'
+    }
+    mavenCentral()
+}
+
+dependencies {
+    // Limoo driver
+    implementation name: 'limoo-java-driver', version: '2.4.1'
+
+    // OkHttp client
+    implementation group: 'com.squareup.okhttp3', name: 'okhttp', version: '4.9.1'
+    implementation group: 'com.squareup.okhttp3', name: 'okhttp-urlconnection', version: '4.9.1'
+
+    // Atmosphere
+    implementation group: 'org.atmosphere', name: 'wasync', version: '2.1.7'
+
+    // Jackson
+    implementation group: 'com.fasterxml.jackson.jaxrs', name: 'jackson-jaxrs-json-provider', version: '2.12.4'
+    implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.12.4'
+
+    // log4j
+    implementation group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.14.1'
+    implementation group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.31'
+
+    // Apache
+    implementation group: 'org.apache.commons', name: 'commons-configuration2', version: '2.7'
+}
+
+application {
+    mainClassName = "ir.mahdihmb.limoo_bot.Main"
+}
+
+task runBot(type: JavaExec) {
+    group = "limoo-bot"
+    description = "Run bot"
+    classpath = sourceSets.main.runtimeClasspath
+    main = "ir.mahdihmb.limoo_bot.Main"
+}
+
+jar  {
+    baseName = "${rootProject.name}"
+
+    from configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+
+    def revision = 'git rev-parse HEAD'.execute().text.trim()
+    def date = new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+    manifest {
+        attributes 'Main-Class': 'ir.mahdihmb.limoo_bot.Main',
+                'Implementation-Title': 'Limoo base bot',
+                "Date": date,
+                "Git-Revision": revision
+    }
+}
