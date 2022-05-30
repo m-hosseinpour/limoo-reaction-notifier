@@ -43,8 +43,9 @@ public class Requester {
         workspace.getRequester().executeApiPost(uri, body, workspace.getWorker());
     }
 
-    public static void followThread(Workspace workspace, String threadRootId) throws LimooException {
-        String uri = String.format(THREAD_FOLLOW_URI_TEMPLATE, workspace.getId(), threadRootId);
+    public static void followThread(Message message) throws LimooException {
+        Workspace workspace = message.getWorkspace();
+        String uri = String.format(THREAD_FOLLOW_URI_TEMPLATE, workspace.getId(), message.getId());
         workspace.getRequester().executeApiPost(uri, JacksonUtils.createEmptyObjectNode(), workspace.getWorker());
     }
 

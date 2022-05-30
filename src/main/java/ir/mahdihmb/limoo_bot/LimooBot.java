@@ -58,8 +58,8 @@ public class LimooBot {
                 handleDirectMessage(message, conversation);
             } else {
                 saveMessageReactions(message);
-                if (message.getThreadRootId() == null) {
-                    Requester.followThread(message.getWorkspace(), threadRootId);
+                if (threadRootId == null) {
+                    Requester.followThread(message);
                 }
             }
         } catch (Throwable e) {
