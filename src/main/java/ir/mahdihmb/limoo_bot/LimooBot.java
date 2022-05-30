@@ -102,6 +102,9 @@ public class LimooBot {
                 return;
 
             saveMessageReactions(message);
+            if (message.getThreadRootId() == null) {
+                Requester.followThread(message);
+            }
 
             String id = message.getId();
             String userId = message.getUserId();
