@@ -92,7 +92,12 @@ public class LimooBot {
             if (activeUsers.contains(userId)) {
                 msgLastPart = String.format("You are currently a member of bot. To stop: [%1$s](%1$s)", STOP_COMMAND);
             }
-            conversation.send("This bot notifies you of reactions to your messages.\n" + msgLastPart);
+            conversation.send(
+                    "This bot notifies you of reactions to your messages (in groups where bot is added).\n" +
+                    "Does not work on messages that created before the bot was added (unless they are edited).\n" +
+                    "***\n" +
+                    msgLastPart
+            );
         }
     }
 
