@@ -29,6 +29,7 @@ public class LimooBot {
     private static final String USERS_STORE_FILE = "users.data";
     public static final String START_COMMAND = "/start";
     public static final String STOP_COMMAND = "/stop";
+    public static final String EMOJI_WRAPPER = ":";
 
     private final String limooUrl;
     private final LimooDriver limooDriver;
@@ -107,7 +108,7 @@ public class LimooBot {
                 return;
 
             String id = message.getId();
-            List<Reaction> preMessageReactions = new ArrayList<>(Optional.ofNullable(msgToReactions.get(id)).orElse(new ArrayList<>()));
+            List<Reaction> preReactions = new ArrayList<>(Optional.ofNullable(msgToReactions.get(id)).orElse(new ArrayList<>()));
 
             saveMessageReactions(message);
             if (message.getThreadRootId() == null) {
@@ -118,11 +119,12 @@ public class LimooBot {
             if (!msgToReactions.containsKey(id) || !activeUsers.contains(userId))
                 return;
 
-            List<Reaction> messageReactions = Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>());
-            if (Arrays.deepEquals(preMessageReactions.toArray(new Reaction[0]), messageReactions.toArray(new Reaction[0])))
+            List<Reaction> reactions = Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>());
+            fixReactionEmojis(reactions);
+            if (Arrays.deepEquals(preReactions.toArray(new Reaction[0]), reactions.toArray(new Reaction[0])))
                 return;
-            List<Reaction> addedReactions = new ArrayList<>(messageReactions);
-            addedReactions.removeAll(preMessageReactions);
+            List<Reaction> addedReactions = new ArrayList<>(reactions);
+            addedReactions.removeAll(preReactions);
             if (!addedReactions.isEmpty()) {
                 for (Reaction addedReaction : addedReactions) {
                     if (addedReaction.getUserId().equals(userId))
@@ -146,7 +148,7 @@ public class LimooBot {
                     if (message.getText().length() > textPreview.length())
                         textPreview += "...";
 
-                    direct.send(userDisplayName + ": :" + addedReaction.getEmojiName() + ":\n" +
+                    direct.send(userDisplayName + ": " + getFixedEmoji(addedReaction.getEmojiName()) + "\n" +
                             "```\n" +
                             textPreview + "\n" +
                             "```\n" +
@@ -167,8 +169,20 @@ public class LimooBot {
     }
 
     private void saveMessageReactions(MessageWithReactions message) {
-        msgToReactions.put(message.getId(), Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>()));
+        List<Reaction> reactions = Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>());
+        fixReactionEmojis(reactions);
+        msgToReactions.put(message.getId(), reactions);
         saveDataFileAsync(storePath, REACTIONS_STORE_FILE, msgToReactions);
+    }
+
+    private void fixReactionEmojis(List<Reaction> reactions) {
+        for (Reaction reaction : reactions) {
+            reaction.setEmojiName(getFixedEmoji(reaction.getEmojiName()));
+        }
+    }
+
+    private String getFixedEmoji(String emoji) {
+        return emoji.startsWith(EMOJI_WRAPPER) ? emoji : (EMOJI_WRAPPER + emoji + EMOJI_WRAPPER);
     }
 
 }
