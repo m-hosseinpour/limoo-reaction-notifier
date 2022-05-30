@@ -106,21 +106,23 @@ public class LimooBot {
             if (ConversationType.DIRECT.equals(conversation.getConversationType()))
                 return;
 
+            String id = message.getId();
+            List<Reaction> preMessageReactions = Optional.ofNullable(msgToReactions.get(id)).orElse(new ArrayList<>());
+
             saveMessageReactions(message);
             if (message.getThreadRootId() == null) {
                 Requester.followThread(message);
             }
 
-            String id = message.getId();
             String userId = message.getUserId();
             if (!msgToReactions.containsKey(id) || !activeUsers.contains(userId))
                 return;
 
             List<Reaction> messageReactions = Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>());
-            if (Arrays.deepEquals(msgToReactions.get(id).toArray(new Reaction[0]), messageReactions.toArray(new Reaction[0])))
+            if (Arrays.deepEquals(preMessageReactions.toArray(new Reaction[0]), messageReactions.toArray(new Reaction[0])))
                 return;
             List<Reaction> addedReactions = new ArrayList<>(messageReactions);
-            addedReactions.removeAll(msgToReactions.get(id));
+            addedReactions.removeAll(preMessageReactions);
             if (!addedReactions.isEmpty()) {
                 for (Reaction addedReaction : addedReactions) {
                     if (addedReaction.getUserId().equals(userId))
