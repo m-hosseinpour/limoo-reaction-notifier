@@ -49,7 +49,7 @@ public class Requester {
         workspace.getRequester().executeApiPost(uri, JacksonUtils.createEmptyObjectNode(), workspace.getWorker());
     }
 
-    public static JsonNode createDirect(Workspace workspace, String botId, String userId) throws LimooException {
+    public static JsonNode getOrCreateDirect(Workspace workspace, String botId, String userId) throws LimooException {
         String uri = String.format(CONVERSATIONS_ROOT_URI_TEMPLATE, workspace.getId());
         ObjectNode body = JacksonUtils.createEmptyObjectNode();
         body.put("type", ConversationType.DIRECT.label);
