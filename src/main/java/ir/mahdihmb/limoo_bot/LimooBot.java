@@ -121,8 +121,7 @@ public class LimooBot {
 
             List<Reaction> reactions = Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>());
             fixReactionEmojis(reactions);
-            if (Arrays.deepEquals(preReactions.toArray(new Reaction[0]), reactions.toArray(new Reaction[0])))
-                return;
+
             List<Reaction> addedReactions = new ArrayList<>(reactions);
             addedReactions.removeAll(preReactions);
             if (!addedReactions.isEmpty()) {
