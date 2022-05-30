@@ -107,7 +107,7 @@ public class LimooBot {
                 return;
 
             String id = message.getId();
-            List<Reaction> preMessageReactions = Optional.ofNullable(msgToReactions.get(id)).orElse(new ArrayList<>());
+            List<Reaction> preMessageReactions = new ArrayList<>(Optional.ofNullable(msgToReactions.get(id)).orElse(new ArrayList<>()));
 
             saveMessageReactions(message);
             if (message.getThreadRootId() == null) {
