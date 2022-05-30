@@ -9,7 +9,7 @@
 bot.limooUrl=https://web.limoo.im/Limonad
 bot.username=bot_username
 bot.password=bot_password
-store.file.path=/opt/limooReactionNotifier/store.data
+store.path=/opt/limooReactionNotifier
 ```
 
 <div dir="rtl">

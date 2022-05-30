@@ -6,84 +6,61 @@ import ir.limoo.driver.entity.Conversation;
 import ir.limoo.driver.entity.ConversationType;
 import ir.limoo.driver.entity.User;
 import ir.limoo.driver.entity.Workspace;
-import ir.limoo.driver.event.LimooEvent;
-import ir.limoo.driver.event.LimooEventListener;
 import ir.limoo.driver.exception.LimooException;
 import ir.limoo.driver.util.JacksonUtils;
 import ir.mahdihmb.limoo_bot.core.ConfigService;
 import ir.mahdihmb.limoo_bot.entity.MessageWithReactions;
 import ir.mahdihmb.limoo_bot.entity.Reaction;
-import ir.mahdihmb.limoo_bot.util.GeneralUtils;
+import ir.mahdihmb.limoo_bot.event.MessageCreatedEventListener;
+import ir.mahdihmb.limoo_bot.event.MessageEditedEventListener;
 import ir.mahdihmb.limoo_bot.util.Requester;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 
-import static ir.mahdihmb.limoo_bot.util.GeneralUtils.empty;
+import static ir.mahdihmb.limoo_bot.util.GeneralUtils.*;
 
 public class LimooBot {
 
     private static final Logger logger = LoggerFactory.getLogger(LimooBot.class);
+    private static final String REACTIONS_STORE_FILE = "reactions.data";
+    private static final String USERS_STORE_FILE = "users.data";
+    public static final String START_COMMAND = "/start";
+    public static final String STOP_COMMAND = "/stop";
 
     private final String limooUrl;
     private final LimooDriver limooDriver;
-    private final String storeFilePath;
+    private final String storePath;
 
     private Map<String, List<Reaction>> msgToReactions;
+    private Set<String> activeUsers;
 
     public LimooBot(String limooUrl, String botUsername, String botPassword) throws LimooException, IOException {
         this.limooUrl = limooUrl;
         limooDriver = new LimooDriver(limooUrl, botUsername, botPassword);
-        storeFilePath = ConfigService.get("store.file.path");
-        loadCachedMessageReactions();
+        storePath = ConfigService.get("store.path");
+        loadOrCreateStoredData();
     }
 
     public void run() {
-        limooDriver.addEventListener(new LimooEventListener() {
-            @Override
-            public boolean canHandle(LimooEvent event) {
-                return "message_created".equals(event.getType()) && event.getEventData().has("message");
-            }
-
-            @Override
-            public void handleEvent(LimooEvent event) throws IOException {
-                JsonNode dataNode = event.getEventData();
-                JsonNode messageNode = dataNode.get("message");
-                MessageWithReactions message = new MessageWithReactions(event.getWorkspace());
-                JacksonUtils.deserializeIntoObject(messageNode, message);
-                ConversationType type = ConversationType.valueOfLabel(dataNode.get("conversation_type").asText());
-                Conversation conversation = new Conversation(message.getConversationId(), type, event.getWorkspace());
-                onNewMessage(message, conversation);
-                conversation.onNewMessage();
-            }
-        });
-
-        limooDriver.addEventListener(new LimooEventListener() {
-            @Override
-            public boolean canHandle(LimooEvent event) {
-                return "message_edited".equals(event.getType()) && event.getEventData().has("message");
-            }
-
-            @Override
-            public void handleEvent(LimooEvent event) throws IOException {
-                JsonNode dataNode = event.getEventData();
-                JsonNode messageNode = dataNode.get("message");
-                MessageWithReactions message = new MessageWithReactions(event.getWorkspace());
-                JacksonUtils.deserializeIntoObject(messageNode, message);
-                onEditMessage(message);
-            }
-        });
+        limooDriver.addEventListener((MessageCreatedEventListener) this::onMessageCreated);
+        limooDriver.addEventListener((MessageEditedEventListener) this::onMessageEdited);
     }
 
-    public void onNewMessage(MessageWithReactions message, Conversation conversation) {
+    private void onMessageCreated(MessageWithReactions message, Conversation conversation) {
         String threadRootId = message.getThreadRootId();
         try {
-            cacheMessageReactions(message);
-            if (message.getThreadRootId() == null && !limooDriver.getBot().getId().equals(message.getUserId())) {
-                Requester.followThread(message.getWorkspace(), threadRootId);
+            if (message.getUserId().equals(limooDriver.getBot().getId()))
+                return;
+            if (ConversationType.DIRECT.equals(conversation.getConversationType())) {
+                handleDirectMessage(message, conversation);
+            } else {
+                saveMessageReactions(message);
+                if (message.getThreadRootId() == null) {
+                    Requester.followThread(message.getWorkspace(), threadRootId);
+                }
             }
         } catch (Throwable e) {
             logger.error("", e);
@@ -100,45 +77,70 @@ public class LimooBot {
         }
     }
 
-    public void onEditMessage(MessageWithReactions message) {
+    private void handleDirectMessage(MessageWithReactions message, Conversation conversation) throws LimooException {
+        String userId = message.getUserId();
+        if (message.getText().startsWith(START_COMMAND) && !activeUsers.contains(userId)) {
+            activeUsers.add(userId);
+            saveDataFileAsync(storePath, USERS_STORE_FILE, activeUsers);
+            Requester.likeMessage(message);
+        } else if (message.getText().startsWith(STOP_COMMAND) && activeUsers.contains(userId)) {
+            activeUsers.remove(userId);
+            saveDataFileAsync(storePath, USERS_STORE_FILE, activeUsers);
+            Requester.likeMessage(message);
+        } else {
+            String msgLastPart = String.format("To start: [%1$s](%1$s)", START_COMMAND);
+            if (activeUsers.contains(userId)) {
+                msgLastPart = String.format("You are currently a member of bot. To stop: [%1$s](%1$s)", STOP_COMMAND);
+            }
+            conversation.send("This bot notifies you of reactions to your messages.\n" + msgLastPart);
+        }
+    }
+
+    private void onMessageEdited(MessageWithReactions message, Conversation conversation) {
         try {
+            if (ConversationType.DIRECT.equals(conversation.getConversationType()))
+                return;
+
+            saveMessageReactions(message);
+
             String id = message.getId();
-            cacheMessageReactions(message);
-            if (msgToReactions.containsKey(id)) {
-                List<Reaction> messageReactions = Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>());
-                if (Arrays.deepEquals(msgToReactions.get(id).toArray(new Reaction[0]), messageReactions.toArray(new Reaction[0])))
-                    return;
-                List<Reaction> addedReactions = new ArrayList<>(messageReactions);
-                addedReactions.removeAll(msgToReactions.get(id));
-                if (!addedReactions.isEmpty()) {
-                    for (Reaction addedReaction : addedReactions) {
-                        if (addedReaction.getUserId().equals(message.getUserId()))
-                            continue;
-                        Workspace workspace = message.getWorkspace();
-                        JsonNode conversationNode = Requester.createDirect(workspace, limooDriver.getBot().getId(), message.getUserId());
-                        Conversation direct = new Conversation(workspace);
-                        JacksonUtils.deserializeIntoObject(conversationNode, direct);
+            String userId = message.getUserId();
+            if (!msgToReactions.containsKey(id) || !activeUsers.contains(userId))
+                return;
 
-                        User user = Requester.getUser(workspace, addedReaction.getUserId());
-                        String userDisplayName = "Someone";
-                        if (user != null)
-                            userDisplayName = user.getDisplayName();
+            List<Reaction> messageReactions = Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>());
+            if (Arrays.deepEquals(msgToReactions.get(id).toArray(new Reaction[0]), messageReactions.toArray(new Reaction[0])))
+                return;
+            List<Reaction> addedReactions = new ArrayList<>(messageReactions);
+            addedReactions.removeAll(msgToReactions.get(id));
+            if (!addedReactions.isEmpty()) {
+                for (Reaction addedReaction : addedReactions) {
+                    if (addedReaction.getUserId().equals(userId))
+                        continue;
+                    Workspace workspace = message.getWorkspace();
+                    JsonNode conversationNode = Requester.createDirect(workspace, limooDriver.getBot().getId(), userId);
+                    Conversation direct = new Conversation(workspace);
+                    JacksonUtils.deserializeIntoObject(conversationNode, direct);
 
-                        int TEXT_PREVIEW_LEN = 200;
-                        String textPreview = message.getText();
-                        if (message.getText().length() > TEXT_PREVIEW_LEN)
-                            textPreview = message.getText().substring(0, TEXT_PREVIEW_LEN);
-                        textPreview = textPreview.replaceAll("[\r\n]", " ");
-                        textPreview = textPreview.replaceAll("`", "");
-                        if (message.getText().length() > textPreview.length())
-                            textPreview += "...";
+                    User user = Requester.getUser(workspace, addedReaction.getUserId());
+                    String userDisplayName = "Someone";
+                    if (user != null)
+                        userDisplayName = user.getDisplayName();
 
-                        direct.send(userDisplayName + ": :" + addedReaction.getEmojiName() + ":\n" +
-                                "```\n" +
-                                textPreview + "\n" +
-                                "```\n" +
-                                GeneralUtils.generateDirectLink(message, limooUrl));
-                    }
+                    int TEXT_PREVIEW_LEN = 200;
+                    String textPreview = message.getText();
+                    if (message.getText().length() > TEXT_PREVIEW_LEN)
+                        textPreview = message.getText().substring(0, TEXT_PREVIEW_LEN);
+                    textPreview = textPreview.replaceAll("[\r\n]", " ");
+                    textPreview = textPreview.replaceAll("`", "");
+                    if (message.getText().length() > textPreview.length())
+                        textPreview += "...";
+
+                    direct.send(userDisplayName + ": :" + addedReaction.getEmojiName() + ":\n" +
+                            "```\n" +
+                            textPreview + "\n" +
+                            "```\n" +
+                            generateDirectLink(message, limooUrl));
                 }
             }
         } catch (Throwable e) {
@@ -146,34 +148,17 @@ public class LimooBot {
         }
     }
 
-    private void loadCachedMessageReactions() throws IOException {
+    private void loadOrCreateStoredData() throws IOException {
         msgToReactions = new HashMap<>();
-        File storeFile = new File(storeFilePath);
-        if (!storeFile.exists()) {
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(storeFile))) {
-                writer.write(JacksonUtils.serializeObjectAsString(msgToReactions));
-            }
-        } else {
-            StringBuilder fileContent = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new FileReader(storeFile))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    fileContent.append(line).append("\n");
-                }
-            }
-            JacksonUtils.deserializeIntoObject(JacksonUtils.convertStringToJsonNode(fileContent.toString()), msgToReactions);
-        }
+        loadOrCreateDataFile(storePath, REACTIONS_STORE_FILE, msgToReactions);
+
+        activeUsers = new HashSet<>();
+        loadOrCreateDataFile(storePath, USERS_STORE_FILE, activeUsers);
     }
 
-    private void cacheMessageReactions(MessageWithReactions message) {
+    private void saveMessageReactions(MessageWithReactions message) {
         msgToReactions.put(message.getId(), Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>()));
-        CompletableFuture.runAsync(() -> {
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(storeFilePath))) {
-                writer.write(JacksonUtils.serializeObjectAsString(msgToReactions));
-            } catch (IOException e) {
-                logger.error("Can't store msgToReactions cache", e);
-            }
-        });
+        saveDataFileAsync(storePath, REACTIONS_STORE_FILE, msgToReactions);
     }
 
 }
