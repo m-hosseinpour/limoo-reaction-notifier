@@ -89,7 +89,7 @@ public class LimooBot {
         if (userId.equals(adminUserId)) {
             if ("/report".equals(message.getText())) {
                 List<User> users = Requester.getUsersByIds(message.getWorkspace(), activeUsers);
-                String usersDisplayNameText = users.stream().map(User::getDisplayName).collect(Collectors.joining("", "- ", "\n"));
+                String usersDisplayNameText = users.stream().map(User::getDisplayName).collect(Collectors.joining("\n- ", "- ", "\n"));
                 conversation.send("Active users:\n" + usersDisplayNameText + "Cached items: " + msgToReactions.size());
                 return;
             }
