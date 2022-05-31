@@ -1,6 +1,7 @@
 package ir.mahdihmb.limoo_bot.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import ir.limoo.driver.entity.ConversationType;
 import ir.limoo.driver.entity.Message;
@@ -13,6 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Set;
 
 public class Requester {
 
@@ -24,6 +27,7 @@ public class Requester {
     private static final String THREAD_VIEW_LOG_URI_TEMPLATE = THREAD_ROOT_URI_TEMPLATE + "/view_log";
     private static final String THREAD_FOLLOW_URI_TEMPLATE = THREAD_ROOT_URI_TEMPLATE + "/follow";
     private static final String REACT_URI_TEMPLATE = MessageUtils.MESSAGES_ROOT_URI_TEMPLATE + "/%s/reaction/items/%s";
+    private static final String GET_USERS_BY_IDS_URI_TEMPLATE = "user/ids";
 
     public static User getUser(Workspace workspace, String userId) throws LimooException {
         String uri = String.format(GET_USER_URI_TEMPLATE, userId);
@@ -61,5 +65,13 @@ public class Requester {
         Workspace workspace = message.getWorkspace();
         String uri = String.format(REACT_URI_TEMPLATE, workspace.getId(), message.getConversationId(), message.getId(), GeneralUtils.LIKE_REACTION);
         workspace.getRequester().executeApiPost(uri, JacksonUtils.createEmptyObjectNode(), workspace.getWorker());
+    }
+
+    public static List<User> getUsersByIds(Workspace workspace, Set<String> userIds) throws LimooException {
+        ArrayNode userIdsNode = JacksonUtils.getObjectMapper().createArrayNode();
+        for (String userId : userIds)
+            userIdsNode.add(userId);
+        JsonNode usersNode = workspace.getRequester().executeApiPost(GET_USERS_BY_IDS_URI_TEMPLATE, userIdsNode, workspace.getWorker());
+        return JacksonUtils.deserializeObjectToList(usersNode, User.class);
     }
 }

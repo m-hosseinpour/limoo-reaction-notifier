@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static ir.mahdihmb.limoo_bot.util.GeneralUtils.*;
 
@@ -37,6 +38,7 @@ public class LimooBot {
     private final String limooUrl;
     private final LimooDriver limooDriver;
     private final String storePath;
+    private final String adminUserId;
 
     private Map<String, List<Reaction>> msgToReactions;
     private Set<String> activeUsers;
@@ -45,6 +47,7 @@ public class LimooBot {
         this.limooUrl = limooUrl;
         limooDriver = new LimooDriver(limooUrl, botUsername, botPassword);
         storePath = ConfigService.get("store.path");
+        adminUserId = ConfigService.get("admin.userId");
         loadOrCreateStoredData();
     }
 
@@ -83,6 +86,14 @@ public class LimooBot {
 
     private void handleDirectMessage(MessageWithReactions message, Conversation conversation) throws LimooException {
         String userId = message.getUserId();
+        if (userId.equals(adminUserId)) {
+            if ("/report".equals(message.getText())) {
+                List<User> users = Requester.getUsersByIds(message.getWorkspace(), activeUsers);
+                conversation.send("Active users:\n- " + users.stream().map(User::getDisplayName).collect(Collectors.joining("\n- ")));
+                return;
+            }
+        }
+
         if (message.getText().startsWith(START_COMMAND) && !activeUsers.contains(userId)) {
             activeUsers.add(userId);
             saveDataFileAsync(storePath, USERS_STORE_FILE, activeUsers);
