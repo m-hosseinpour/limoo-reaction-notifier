@@ -25,11 +25,14 @@ import static ir.mahdihmb.limoo_bot.util.GeneralUtils.*;
 public class LimooBot {
 
     private static final Logger logger = LoggerFactory.getLogger(LimooBot.class);
+
     private static final String REACTIONS_STORE_FILE = "reactions.data";
     private static final String USERS_STORE_FILE = "users.data";
-    public static final String START_COMMAND = "/start";
-    public static final String STOP_COMMAND = "/stop";
-    public static final String EMOJI_WRAPPER = ":";
+
+    private static final String START_COMMAND = "/start";
+    private static final String STOP_COMMAND = "/stop";
+    private static final String EMOJI_WRAPPER = ":";
+    private static final int TEXT_PREVIEW_LEN = 500;
 
     private final String limooUrl;
     private final LimooDriver limooDriver;
@@ -138,7 +141,6 @@ public class LimooBot {
                     if (user != null)
                         userDisplayName = user.getDisplayName();
 
-                    int TEXT_PREVIEW_LEN = 200;
                     String textPreview = message.getText();
                     if (message.getText().length() > TEXT_PREVIEW_LEN)
                         textPreview = message.getText().substring(0, TEXT_PREVIEW_LEN);
