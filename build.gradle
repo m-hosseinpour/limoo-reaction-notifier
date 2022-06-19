@@ -12,7 +12,7 @@ repositories {
 
 dependencies {
     // Limoo driver
-    implementation name: 'limoo-java-driver', version: '2.4.1'
+    implementation name: 'limoo-java-driver', version: '2.5.0'
 
     // OkHttp client
     implementation group: 'com.squareup.okhttp3', name: 'okhttp', version: '4.9.1'
