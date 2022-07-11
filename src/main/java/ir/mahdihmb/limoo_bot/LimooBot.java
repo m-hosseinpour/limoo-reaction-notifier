@@ -65,9 +65,6 @@ public class LimooBot {
                 handleDirectMessage(message, conversation);
             } else {
                 saveMessageReactions(message);
-                if (threadRootId == null) {
-                    Requester.followThread(message);
-                }
             }
         } catch (Throwable e) {
             logger.error("", e);
@@ -126,9 +123,6 @@ public class LimooBot {
             List<Reaction> preReactions = new ArrayList<>(Optional.ofNullable(msgToReactions.get(id)).orElse(new ArrayList<>()));
 
             saveMessageReactions(message);
-            if (message.getThreadRootId() == null) {
-                Requester.followThread(message);
-            }
 
             String userId = message.getUserId();
             if (!msgToReactions.containsKey(id) || !activeUsers.contains(userId))
