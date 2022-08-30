@@ -137,15 +137,17 @@ public class LimooBot {
                 for (Reaction addedReaction : addedReactions) {
                     if (addedReaction.getUserId().equals(userId))
                         continue;
+
                     Workspace workspace = message.getWorkspace();
                     JsonNode directNode = Requester.getOrCreateDirect(workspace, limooDriver.getBot().getId(), userId);
                     Conversation direct = new Conversation(workspace);
                     JacksonUtils.deserializeIntoObject(directNode, direct);
 
                     User user = Requester.getUser(workspace, addedReaction.getUserId());
-                    String userDisplayName = "Someone";
-                    if (user != null)
-                        userDisplayName = user.getDisplayName();
+                    if (user != null && user.getBot())
+                        continue;
+
+                    String userDisplayName = user != null ? user.getDisplayName() : "Someone";
 
                     String textPreview = message.getText();
                     if (message.getText().length() > TEXT_PREVIEW_LEN)
