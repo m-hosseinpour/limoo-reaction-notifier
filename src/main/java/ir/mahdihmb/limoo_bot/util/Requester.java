@@ -61,16 +61,14 @@ public class Requester {
         return workspace.getRequester().executeApiPost(uri, body, workspace.getWorker());
     }
 
-    public static void likeMessage(Message message) throws LimooException {
+    public static void reactMessage(Message message, String reaction) throws LimooException {
         Workspace workspace = message.getWorkspace();
-        String uri = String.format(REACT_URI_TEMPLATE, workspace.getId(), message.getConversationId(), message.getId(), GeneralUtils.LIKE_REACTION);
+        String uri = String.format(REACT_URI_TEMPLATE, workspace.getId(), message.getConversationId(), message.getId(), reaction);
         workspace.getRequester().executeApiPost(uri, JacksonUtils.createEmptyObjectNode(), workspace.getWorker());
     }
 
-    public static void poopMessage(Message message) throws LimooException {
-        Workspace workspace = message.getWorkspace();
-        String uri = String.format(REACT_URI_TEMPLATE, workspace.getId(), message.getConversationId(), message.getId(), GeneralUtils.POOP_REACTION);
-        workspace.getRequester().executeApiPost(uri, JacksonUtils.createEmptyObjectNode(), workspace.getWorker());
+    public static void likeMessage(Message message) throws LimooException {
+        reactMessage(message, GeneralUtils.LIKE_REACTION);
     }
 
     public static List<User> getUsersByIds(Workspace workspace, Set<String> userIds) throws LimooException {

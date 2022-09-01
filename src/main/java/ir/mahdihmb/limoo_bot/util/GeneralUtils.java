@@ -14,6 +14,7 @@ public class GeneralUtils {
 
     public static final String LIKE_REACTION = "+1";
     public static final String POOP_REACTION = "hankey";
+    public static final String GHOST_REACTION = "ghost";
     public static final String LINK_EMOJI = ":link:";
     public static final String MARKDOWN_LINK_TEMPLATE = "[%s](%s)";
     public static final String DIRECT_LINK_URI_TEMPLATE = "workspace/%s/conversation/%s/message/%s";

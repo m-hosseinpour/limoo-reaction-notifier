@@ -13,6 +13,7 @@ import ir.mahdihmb.limoo_bot.entity.MessageWithReactions;
 import ir.mahdihmb.limoo_bot.entity.Reaction;
 import ir.mahdihmb.limoo_bot.event.MessageCreatedEventListener;
 import ir.mahdihmb.limoo_bot.event.MessageEditedEventListener;
+import ir.mahdihmb.limoo_bot.util.GeneralUtils;
 import ir.mahdihmb.limoo_bot.util.Requester;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,8 +31,8 @@ public class LimooBot {
     private static final String REACTIONS_STORE_FILE = "reactions.data";
     private static final String USERS_STORE_FILE = "users.data";
 
-    private static final String PEYGIR_BOT_ID = "6a52edf5-31b4-44be-88ad-b221974596de";
     private static final String SHAEDAEI_MENTION = "@29481cc3-1ad7-4bd5-8254-28d4e00d6970";
+    private static final String HOSSEINPOUR_MENTION = "@e8f42839-6b9e-4e72-bd0f-d70804c0b50e";
 
     private static final String START_COMMAND = "/start";
     private static final String STOP_COMMAND = "/stop";
@@ -71,7 +72,9 @@ public class LimooBot {
             }
 
             if (SHAEDAEI_MENTION.equals(message.getText().trim())) {
-                Requester.poopMessage(message);
+                Requester.reactMessage(message, GeneralUtils.POOP_REACTION);
+            } else if (HOSSEINPOUR_MENTION.equals(message.getText().trim())) {
+                Requester.reactMessage(message, GeneralUtils.GHOST_REACTION);
             }
         } catch (Throwable e) {
             logger.error("", e);
