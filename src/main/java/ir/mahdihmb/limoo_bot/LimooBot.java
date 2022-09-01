@@ -62,16 +62,16 @@ public class LimooBot {
     private void onMessageCreated(MessageWithReactions message, Conversation conversation) {
         String threadRootId = message.getThreadRootId();
         try {
-            if (PEYGIR_BOT_ID.equals(message.getUserId())) {
-                if (SHAEDAEI_MENTION.equals(message.getText().trim())) {
-                    Requester.poopMessage(message);
-                }
-            } else if (message.getUserId().equals(limooDriver.getBot().getId()))
+            if (message.getUserId().equals(limooDriver.getBot().getId()))
                 return;
             if (ConversationType.DIRECT.equals(conversation.getConversationType())) {
                 handleDirectMessage(message, conversation);
             } else {
                 saveMessageReactions(message);
+            }
+
+            if (SHAEDAEI_MENTION.equals(message.getText().trim())) {
+                Requester.poopMessage(message);
             }
         } catch (Throwable e) {
             logger.error("", e);
