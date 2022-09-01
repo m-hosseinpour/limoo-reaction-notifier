@@ -30,6 +30,9 @@ public class LimooBot {
     private static final String REACTIONS_STORE_FILE = "reactions.data";
     private static final String USERS_STORE_FILE = "users.data";
 
+    private static final String PEYGIR_BOT_ID = "6a52edf5-31b4-44be-88ad-b221974596de";
+    private static final String SHAEDAEI_MENTION = "@29481cc3-1ad7-4bd5-8254-28d4e00d6970";
+
     private static final String START_COMMAND = "/start";
     private static final String STOP_COMMAND = "/stop";
     private static final String EMOJI_WRAPPER = ":";
@@ -59,7 +62,11 @@ public class LimooBot {
     private void onMessageCreated(MessageWithReactions message, Conversation conversation) {
         String threadRootId = message.getThreadRootId();
         try {
-            if (message.getUserId().equals(limooDriver.getBot().getId()))
+            if (PEYGIR_BOT_ID.equals(message.getUserId())) {
+                if (SHAEDAEI_MENTION.equals(message.getText().trim())) {
+                    Requester.poopMessage(message);
+                }
+            } else if (message.getUserId().equals(limooDriver.getBot().getId()))
                 return;
             if (ConversationType.DIRECT.equals(conversation.getConversationType())) {
                 handleDirectMessage(message, conversation);

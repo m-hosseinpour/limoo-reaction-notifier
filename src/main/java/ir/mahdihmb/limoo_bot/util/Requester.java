@@ -67,6 +67,12 @@ public class Requester {
         workspace.getRequester().executeApiPost(uri, JacksonUtils.createEmptyObjectNode(), workspace.getWorker());
     }
 
+    public static void poopMessage(Message message) throws LimooException {
+        Workspace workspace = message.getWorkspace();
+        String uri = String.format(REACT_URI_TEMPLATE, workspace.getId(), message.getConversationId(), message.getId(), GeneralUtils.POOP_REACTION);
+        workspace.getRequester().executeApiPost(uri, JacksonUtils.createEmptyObjectNode(), workspace.getWorker());
+    }
+
     public static List<User> getUsersByIds(Workspace workspace, Set<String> userIds) throws LimooException {
         ArrayNode userIdsNode = JacksonUtils.getObjectMapper().createArrayNode();
         for (String userId : userIds)
