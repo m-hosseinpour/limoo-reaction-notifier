@@ -31,7 +31,7 @@ public class LimooBot {
     private static final String REACTIONS_STORE_FILE = "reactions.data";
     private static final String USERS_STORE_FILE = "users.data";
 
-    private static final String SHAEDAEI_MENTION = "@29481cc3-1ad7-4bd5-8254-28d4e00d6970";
+    private static final String YEKKEKHANI_MENTION = "@59a404e1-da30-45ce-bf7f-8099e1ef9273";
     private static final String HOSSEINPOUR_MENTION = "@e8f42839-6b9e-4e72-bd0f-d70804c0b50e";
 
     private static final String START_COMMAND = "/start";
@@ -71,8 +71,8 @@ public class LimooBot {
                 saveMessageReactions(message);
             }
 
-            if (SHAEDAEI_MENTION.equals(message.getText().trim())) {
-                Requester.reactMessage(message, GeneralUtils.POOP_REACTION);
+            if (YEKKEKHANI_MENTION.equals(message.getText().trim())) {
+                Requester.reactMessage(message, GeneralUtils.TROPHY_REACTION);
             } else if (HOSSEINPOUR_MENTION.equals(message.getText().trim())) {
                 Requester.reactMessage(message, GeneralUtils.GHOST_REACTION);
             }

@@ -13,7 +13,7 @@ public class GeneralUtils {
     private static final Logger logger = LoggerFactory.getLogger(GeneralUtils.class);
 
     public static final String LIKE_REACTION = "+1";
-    public static final String POOP_REACTION = "hankey";
+    public static final String TROPHY_REACTION = "trophy";
     public static final String GHOST_REACTION = "ghost";
     public static final String LINK_EMOJI = ":link:";
     public static final String MARKDOWN_LINK_TEMPLATE = "[%s](%s)";
