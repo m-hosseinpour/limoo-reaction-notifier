@@ -9,11 +9,10 @@ import ir.limoo.driver.entity.Workspace;
 import ir.limoo.driver.exception.LimooException;
 import ir.limoo.driver.util.JacksonUtils;
 import ir.mahdihmb.limoo_bot.core.ConfigService;
-import ir.mahdihmb.limoo_bot.entity.MessageWithReactions;
+import ir.mahdihmb.limoo_bot.entity.Message;
 import ir.mahdihmb.limoo_bot.entity.Reaction;
 import ir.mahdihmb.limoo_bot.event.MessageCreatedEventListener;
 import ir.mahdihmb.limoo_bot.event.MessageEditedEventListener;
-import ir.mahdihmb.limoo_bot.util.GeneralUtils;
 import ir.mahdihmb.limoo_bot.util.Requester;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +21,7 @@ import java.io.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static ir.mahdihmb.limoo_bot.util.GeneralUtils.*;
+import static ir.mahdihmb.limoo_bot.util.Utils.*;
 
 public class LimooBot {
 
@@ -31,12 +30,8 @@ public class LimooBot {
     private static final String REACTIONS_STORE_FILE = "reactions.data";
     private static final String USERS_STORE_FILE = "users.data";
 
-    private static final String YEKKEKHANI_MENTION = "@59a404e1-da30-45ce-bf7f-8099e1ef9273";
-    private static final String HOSSEINPOUR_MENTION = "@e8f42839-6b9e-4e72-bd0f-d70804c0b50e";
-
     private static final String START_COMMAND = "/start";
     private static final String STOP_COMMAND = "/stop";
-    private static final String EMOJI_WRAPPER = ":";
     private static final int TEXT_PREVIEW_LEN = 500;
 
     private final String limooUrl;
@@ -60,7 +55,7 @@ public class LimooBot {
         limooDriver.addEventListener((MessageEditedEventListener) this::onMessageEdited);
     }
 
-    private void onMessageCreated(MessageWithReactions message, Conversation conversation) {
+    private void onMessageCreated(Message message, Conversation conversation) {
         String threadRootId = message.getThreadRootId();
         try {
             if (message.getUserId().equals(limooDriver.getBot().getId()))
@@ -71,11 +66,7 @@ public class LimooBot {
                 saveMessageReactions(message);
             }
 
-            if (YEKKEKHANI_MENTION.equals(message.getText().trim())) {
-                Requester.reactMessage(message, GeneralUtils.TROPHY_REACTION);
-            } else if (HOSSEINPOUR_MENTION.equals(message.getText().trim())) {
-                Requester.reactMessage(message, GeneralUtils.GHOST_REACTION);
-            }
+            doAutoReactions(message);
         } catch (Throwable e) {
             logger.error("", e);
         } finally {
@@ -91,7 +82,7 @@ public class LimooBot {
         }
     }
 
-    private void handleDirectMessage(MessageWithReactions message, Conversation conversation) throws LimooException {
+    private void handleDirectMessage(Message message, Conversation conversation) throws LimooException {
         String userId = message.getUserId();
         if (userId.equals(adminUserId)) {
             if ("/report".equals(message.getText())) {
@@ -124,7 +115,7 @@ public class LimooBot {
         }
     }
 
-    private void onMessageEdited(MessageWithReactions message, Conversation conversation) {
+    private void onMessageEdited(Message message, Conversation conversation) {
         try {
             if (ConversationType.DIRECT.equals(conversation.getConversationType()))
                 return;
@@ -186,7 +177,7 @@ public class LimooBot {
         loadOrCreateDataFile(storePath, USERS_STORE_FILE, activeUsers);
     }
 
-    private void saveMessageReactions(MessageWithReactions message) {
+    private void saveMessageReactions(Message message) {
         List<Reaction> reactions = Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>());
         fixReactionEmojis(reactions);
         msgToReactions.put(message.getId(), reactions);
@@ -199,8 +190,27 @@ public class LimooBot {
         }
     }
 
-    private String getFixedEmoji(String emoji) {
-        return emoji.startsWith(EMOJI_WRAPPER) ? emoji : (EMOJI_WRAPPER + emoji + EMOJI_WRAPPER);
+    private void doAutoReactions(Message message) throws LimooException {
+        String trimmedText = message.getText().trim();
+        if (YEKKEKHANI_MENTION.equals(trimmedText)) {
+            Requester.reactMessage(message, TROPHY_REACTION);
+            return;
+        }
+
+        if (HOSSEINPOUR_MENTION.equals(trimmedText)) {
+            Requester.reactMessage(message, GHOST_REACTION);
+            return;
+        }
+
+        List<String> mentions = message.getMentions();
+        if (mentions != null && mentions.size() == 1 && TAVASSOLIAN_UID.equals(mentions.get(0))) {
+            int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+            if (hour >= 8 && hour < 16) { // tavassolian's working hours
+                Requester.reactMessage(message, HUGGING_FACE_REACTION);
+            } else {
+                Requester.reactMessage(message, SLEEPING_REACTION);
+            }
+        }
     }
 
 }

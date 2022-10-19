@@ -4,12 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import ir.limoo.driver.entity.ConversationType;
-import ir.limoo.driver.entity.Message;
 import ir.limoo.driver.entity.User;
 import ir.limoo.driver.entity.Workspace;
 import ir.limoo.driver.exception.LimooException;
 import ir.limoo.driver.util.JacksonUtils;
 import ir.limoo.driver.util.MessageUtils;
+import ir.mahdihmb.limoo_bot.entity.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,7 +25,6 @@ public class Requester {
     private static final String CONVERSATIONS_ROOT_URI_TEMPLATE = "workspace/items/%s/conversation/items";
     private static final String THREAD_ROOT_URI_TEMPLATE = "workspace/items/%s/thread/items/%s";
     private static final String THREAD_VIEW_LOG_URI_TEMPLATE = THREAD_ROOT_URI_TEMPLATE + "/view_log";
-    private static final String THREAD_FOLLOW_URI_TEMPLATE = THREAD_ROOT_URI_TEMPLATE + "/follow";
     private static final String REACT_URI_TEMPLATE = MessageUtils.MESSAGES_ROOT_URI_TEMPLATE + "/%s/reaction/items/%s";
     private static final String GET_USERS_BY_IDS_URI_TEMPLATE = "user/ids";
 
@@ -43,14 +42,8 @@ public class Requester {
     public static void viewLogThread(Workspace workspace, String threadRootId) throws LimooException {
         String uri = String.format(THREAD_VIEW_LOG_URI_TEMPLATE, workspace.getId(), threadRootId);
         ObjectNode body = JacksonUtils.createEmptyObjectNode();
-        body.put("is_viewed", true);
+        body.put("viewed", true);
         workspace.getRequester().executeApiPost(uri, body, workspace.getWorker());
-    }
-
-    public static void followThread(Message message) throws LimooException {
-        Workspace workspace = message.getWorkspace();
-        String uri = String.format(THREAD_FOLLOW_URI_TEMPLATE, workspace.getId(), message.getId());
-        workspace.getRequester().executeApiPost(uri, JacksonUtils.createEmptyObjectNode(), workspace.getWorker());
     }
 
     public static JsonNode getOrCreateDirect(Workspace workspace, String botId, String userId) throws LimooException {
@@ -68,7 +61,7 @@ public class Requester {
     }
 
     public static void likeMessage(Message message) throws LimooException {
-        reactMessage(message, GeneralUtils.LIKE_REACTION);
+        reactMessage(message, Utils.LIKE_REACTION);
     }
 
     public static List<User> getUsersByIds(Workspace workspace, Set<String> userIds) throws LimooException {

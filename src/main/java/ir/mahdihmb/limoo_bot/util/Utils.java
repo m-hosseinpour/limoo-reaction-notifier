@@ -1,20 +1,28 @@
 package ir.mahdihmb.limoo_bot.util;
 
-import ir.limoo.driver.entity.Message;
 import ir.limoo.driver.util.JacksonUtils;
+import ir.mahdihmb.limoo_bot.entity.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.util.concurrent.CompletableFuture;
 
-public class GeneralUtils {
+public class Utils {
 
-    private static final Logger logger = LoggerFactory.getLogger(GeneralUtils.class);
+    private static final Logger logger = LoggerFactory.getLogger(Utils.class);
 
+    public static final String YEKKEKHANI_MENTION = "@59a404e1-da30-45ce-bf7f-8099e1ef9273";
+    public static final String HOSSEINPOUR_MENTION = "@e8f42839-6b9e-4e72-bd0f-d70804c0b50e";
+
+    public static final String TAVASSOLIAN_UID = "5b64a372-d3c6-4933-9245-9464af0d3800";
+
+    public static final String EMOJI_WRAPPER = ":";
     public static final String LIKE_REACTION = "+1";
     public static final String TROPHY_REACTION = "trophy";
     public static final String GHOST_REACTION = "ghost";
+    public static final String SLEEPING_REACTION = "sleeping";
+    public static final String HUGGING_FACE_REACTION = "hugging_face";
     public static final String LINK_EMOJI = ":link:";
     public static final String MARKDOWN_LINK_TEMPLATE = "[%s](%s)";
     public static final String DIRECT_LINK_URI_TEMPLATE = "workspace/%s/conversation/%s/message/%s";
@@ -73,5 +81,9 @@ public class GeneralUtils {
                 logger.error("Can't store msgToReactions cache", e);
             }
         });
+    }
+
+    public static String getFixedEmoji(String emoji) {
+        return emoji.startsWith(EMOJI_WRAPPER) ? emoji : (EMOJI_WRAPPER + emoji + EMOJI_WRAPPER);
     }
 }

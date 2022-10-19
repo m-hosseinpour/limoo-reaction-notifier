@@ -6,7 +6,7 @@ import ir.limoo.driver.entity.ConversationType;
 import ir.limoo.driver.event.LimooEvent;
 import ir.limoo.driver.event.LimooEventListener;
 import ir.limoo.driver.util.JacksonUtils;
-import ir.mahdihmb.limoo_bot.entity.MessageWithReactions;
+import ir.mahdihmb.limoo_bot.entity.Message;
 
 import java.io.IOException;
 
@@ -22,7 +22,7 @@ public interface MessageCreatedEventListener extends LimooEventListener {
     default void handleEvent(LimooEvent event) throws IOException {
         JsonNode dataNode = event.getEventData();
         JsonNode messageNode = dataNode.get("message");
-        MessageWithReactions message = new MessageWithReactions(event.getWorkspace());
+        Message message = new Message(event.getWorkspace());
         JacksonUtils.deserializeIntoObject(messageNode, message);
         ConversationType type = ConversationType.valueOfLabel(dataNode.get("conversation_type").asText());
         Conversation conversation = new Conversation(message.getConversationId(), type, event.getWorkspace());
@@ -30,5 +30,5 @@ public interface MessageCreatedEventListener extends LimooEventListener {
         conversation.onNewMessage();
     }
 
-    void onMessageCreated(MessageWithReactions message, Conversation conversation);
+    void onMessageCreated(Message message, Conversation conversation);
 }
