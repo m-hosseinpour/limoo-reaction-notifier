@@ -39,7 +39,7 @@ public class Message extends ir.limoo.driver.entity.Message {
     }
 
     public List<String> getMentions() {
-        if (props == null)
+        if (props == null || props.getMentions() == null)
             return Collections.emptyList();
         return props.getMentions();
     }

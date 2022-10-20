@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 
 public class Utils {
@@ -85,6 +86,9 @@ public class Utils {
     }
 
     public static void fixMessageReactions(Message message) {
+        if (message.getReactions() == null) {
+            message.setReactions(Collections.emptyList());
+        }
         for (Reaction reaction : message.getReactions()) {
             String emojiName = reaction.getEmojiName();
             if (!emojiName.startsWith(EMOJI_WRAPPER))
