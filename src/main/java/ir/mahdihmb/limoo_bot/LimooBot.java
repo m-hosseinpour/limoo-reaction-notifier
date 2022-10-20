@@ -4,21 +4,21 @@ import com.fasterxml.jackson.databind.JsonNode;
 import ir.limoo.driver.LimooDriver;
 import ir.limoo.driver.entity.Conversation;
 import ir.limoo.driver.entity.ConversationType;
-import ir.limoo.driver.entity.User;
-import ir.limoo.driver.entity.Workspace;
 import ir.limoo.driver.exception.LimooException;
 import ir.limoo.driver.util.JacksonUtils;
 import ir.mahdihmb.limoo_bot.core.ConfigService;
 import ir.mahdihmb.limoo_bot.entity.Message;
 import ir.mahdihmb.limoo_bot.entity.Reaction;
+import ir.mahdihmb.limoo_bot.entity.User;
 import ir.mahdihmb.limoo_bot.event.MessageCreatedEventListener;
 import ir.mahdihmb.limoo_bot.event.MessageEditedEventListener;
 import ir.mahdihmb.limoo_bot.util.Requester;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.IOException;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static ir.mahdihmb.limoo_bot.util.Utils.*;
@@ -36,6 +36,7 @@ public class LimooBot {
 
     private final String limooUrl;
     private final LimooDriver limooDriver;
+    private final String botId;
     private final String storePath;
     private final String adminUserId;
 
@@ -45,6 +46,7 @@ public class LimooBot {
     public LimooBot(String limooUrl, String botUsername, String botPassword) throws LimooException, IOException {
         this.limooUrl = limooUrl;
         limooDriver = new LimooDriver(limooUrl, botUsername, botPassword);
+        botId = limooDriver.getBot().getId();
         storePath = ConfigService.get("store.path");
         adminUserId = ConfigService.get("admin.userId");
         loadOrCreateStoredData();
@@ -56,21 +58,24 @@ public class LimooBot {
     }
 
     private void onMessageCreated(Message message, Conversation conversation) {
-        String threadRootId = message.getThreadRootId();
         try {
-            if (message.getUserId().equals(limooDriver.getBot().getId()))
+            if (message.getUserId().equals(botId))
                 return;
+
             if (ConversationType.DIRECT.equals(conversation.getConversationType())) {
                 handleDirectMessage(message, conversation);
             } else {
-                saveMessageReactions(message);
+                fixMessageReactions(message);
+                msgToReactions.put(message.getId(), message.getReactions());
+                saveMsgToReactions();
             }
 
             doAutoReactions(message);
         } catch (Throwable e) {
             logger.error("", e);
         } finally {
-            if (empty(threadRootId)) {
+            String threadRootId = message.getThreadRootId();
+            if (isEmpty(threadRootId)) {
                 conversation.viewLog();
             } else {
                 try {
@@ -95,16 +100,18 @@ public class LimooBot {
 
         if (message.getText().startsWith(START_COMMAND) && !activeUsers.contains(userId)) {
             activeUsers.add(userId);
-            saveDataFileAsync(storePath, USERS_STORE_FILE, activeUsers);
+            saveActiveUsers();
             Requester.likeMessage(message);
         } else if (message.getText().startsWith(STOP_COMMAND) && activeUsers.contains(userId)) {
             activeUsers.remove(userId);
-            saveDataFileAsync(storePath, USERS_STORE_FILE, activeUsers);
+            saveActiveUsers();
             Requester.likeMessage(message);
         } else {
-            String msgLastPart = String.format("To start: [%1$s](%1$s)", START_COMMAND);
+            String msgLastPart;
             if (activeUsers.contains(userId)) {
                 msgLastPart = String.format("You are currently a member of bot. To stop: [%1$s](%1$s)", STOP_COMMAND);
+            } else {
+                msgLastPart = String.format("To start: [%1$s](%1$s)", START_COMMAND);
             }
             conversation.send(
                     "This bot notifies you of reactions to your messages (in groups where bot is added).\n" +
@@ -120,53 +127,56 @@ public class LimooBot {
             if (ConversationType.DIRECT.equals(conversation.getConversationType()))
                 return;
 
-            String id = message.getId();
-            List<Reaction> preReactions = new ArrayList<>(Optional.ofNullable(msgToReactions.get(id)).orElse(new ArrayList<>()));
+            List<Reaction> preReactions = msgToReactions.get(message.getId());
 
-            saveMessageReactions(message);
+            fixMessageReactions(message);
+            msgToReactions.put(message.getId(), message.getReactions());
+            saveMsgToReactions();
 
-            String userId = message.getUserId();
-            if (!msgToReactions.containsKey(id) || !activeUsers.contains(userId))
+            String ownerUserId = message.getUserId();
+            if (preReactions == null || !activeUsers.contains(ownerUserId))
                 return;
 
-            List<Reaction> reactions = Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>());
-            fixReactionEmojis(reactions);
+            List<Reaction> newReactions = new ArrayList<>(message.getReactions());
+            newReactions.removeAll(preReactions);
 
-            List<Reaction> addedReactions = new ArrayList<>(reactions);
-            addedReactions.removeAll(preReactions);
-            if (!addedReactions.isEmpty()) {
-                for (Reaction addedReaction : addedReactions) {
-                    if (addedReaction.getUserId().equals(userId))
-                        continue;
+            Set<String> userIds = newReactions.stream().map(Reaction::getUserId).collect(Collectors.toSet());
+            List<User> users = Requester.getUsersByIds(message.getWorkspace(), userIds);
+            Map<String, User> userMap = users.stream().collect(Collectors.toMap(User::getId, Function.identity()));
 
-                    Workspace workspace = message.getWorkspace();
-                    JsonNode directNode = Requester.getOrCreateDirect(workspace, limooDriver.getBot().getId(), userId);
-                    Conversation direct = new Conversation(workspace);
-                    JacksonUtils.deserializeIntoObject(directNode, direct);
+            for (Reaction newReaction : newReactions) {
+                User user = userMap.get(newReaction.getUserId());
+                if (user != null && user.isBot() || newReaction.getUserId().equals(ownerUserId))
+                    continue;
 
-                    User user = Requester.getUser(workspace, addedReaction.getUserId());
-                    if (user != null && user.getBot())
-                        continue;
+                String userDisplayName = user != null ? user.getDisplayName() : "Someone";
 
-                    String userDisplayName = user != null ? user.getDisplayName() : "Someone";
-
-                    String textPreview = message.getText();
-                    if (message.getText().length() > TEXT_PREVIEW_LEN)
-                        textPreview = message.getText().substring(0, TEXT_PREVIEW_LEN);
-                    textPreview = textPreview.replaceAll("`", "");
-                    if (message.getText().length() > textPreview.length())
-                        textPreview += "...";
-
-                    direct.send(userDisplayName + ": " + getFixedEmoji(addedReaction.getEmojiName()) + "\n" +
-                            "```\n" +
-                            textPreview + "\n" +
-                            "```\n" +
-                            generateDirectLink(message, limooUrl));
+                String textPreview = message.getText().replaceAll("`", "");
+                if (textPreview.length() > TEXT_PREVIEW_LEN) {
+                    textPreview = textPreview.substring(0, TEXT_PREVIEW_LEN) + "...";
                 }
+
+                JsonNode directNode = Requester.getOrCreateDirect(message.getWorkspace(), botId, ownerUserId);
+                Conversation direct = new Conversation(message.getWorkspace());
+                JacksonUtils.deserializeIntoObject(directNode, direct);
+
+                direct.send(userDisplayName + ": " + newReaction.getEmojiName() + "\n" +
+                        "```\n" +
+                        textPreview + "\n" +
+                        "```\n" +
+                        generateDirectLink(message, limooUrl));
             }
         } catch (Throwable e) {
             logger.error("", e);
         }
+    }
+
+    private void saveActiveUsers() {
+        saveDataFileAsync(storePath, USERS_STORE_FILE, activeUsers);
+    }
+
+    private void saveMsgToReactions() {
+        saveDataFileAsync(storePath, REACTIONS_STORE_FILE, msgToReactions);
     }
 
     private void loadOrCreateStoredData() throws IOException {
@@ -175,19 +185,6 @@ public class LimooBot {
 
         activeUsers = new HashSet<>();
         loadOrCreateDataFile(storePath, USERS_STORE_FILE, activeUsers);
-    }
-
-    private void saveMessageReactions(Message message) {
-        List<Reaction> reactions = Optional.ofNullable(message.getReactions()).orElse(new ArrayList<>());
-        fixReactionEmojis(reactions);
-        msgToReactions.put(message.getId(), reactions);
-        saveDataFileAsync(storePath, REACTIONS_STORE_FILE, msgToReactions);
-    }
-
-    private void fixReactionEmojis(List<Reaction> reactions) {
-        for (Reaction reaction : reactions) {
-            reaction.setEmojiName(getFixedEmoji(reaction.getEmojiName()));
-        }
     }
 
     private void doAutoReactions(Message message) throws LimooException {
@@ -202,14 +199,12 @@ public class LimooBot {
             return;
         }
 
-        List<String> mentions = message.getMentions();
-        if (mentions != null && mentions.size() == 1 && TAVASSOLIAN_UID.equals(mentions.get(0))) {
-            int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
-            if (hour >= 8 && hour < 16) { // tavassolian's working hours
-                Requester.reactMessage(message, HUGGING_FACE_REACTION);
-            } else {
-                Requester.reactMessage(message, SLEEPING_REACTION);
-            }
+        Set<String> mentionSet = new HashSet<>(message.getMentions());
+        if (mentionSet.size() == 1 && TAVASSOLIAN_UID.equals(mentionSet.iterator().next())) {
+            Calendar calendar = Calendar.getInstance();
+            int hour = calendar.get(Calendar.HOUR_OF_DAY);
+            boolean isNotWorking = hour < 8 || hour >= 16 || Calendar.FRIDAY == calendar.get(Calendar.DAY_OF_WEEK);
+            Requester.reactMessage(message, isNotWorking ? SLEEPING_REACTION : HUGGING_FACE_REACTION);
         }
     }
 

@@ -3,12 +3,13 @@ package ir.mahdihmb.limoo_bot.entity;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import ir.limoo.driver.entity.Workspace;
 
+import java.util.Collections;
 import java.util.List;
 
 public class Message extends ir.limoo.driver.entity.Message {
 
     @JsonProperty("reactions")
-    private List<Reaction> reactions;
+    private List<Reaction> reactions = Collections.emptyList();
 
     @JsonProperty("props")
     private MessageProps props;
@@ -39,14 +40,14 @@ public class Message extends ir.limoo.driver.entity.Message {
 
     public List<String> getMentions() {
         if (props == null)
-            return null;
+            return Collections.emptyList();
         return props.getMentions();
     }
 
     public static class MessageProps {
 
         @JsonProperty("mentions")
-        private List<String> mentions;
+        private List<String> mentions = Collections.emptyList();
 
         public List<String> getMentions() {
             return mentions;

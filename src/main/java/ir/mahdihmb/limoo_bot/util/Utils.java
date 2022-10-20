@@ -2,6 +2,7 @@ package ir.mahdihmb.limoo_bot.util;
 
 import ir.limoo.driver.util.JacksonUtils;
 import ir.mahdihmb.limoo_bot.entity.Message;
+import ir.mahdihmb.limoo_bot.entity.Reaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,11 +29,11 @@ public class Utils {
     public static final String DIRECT_LINK_URI_TEMPLATE = "workspace/%s/conversation/%s/message/%s";
     public static final String THREAD_DIRECT_LINK_URI_TEMPLATE = "workspace/%s/conversation/%s/thread/%s/message/%s";
 
-    public static boolean empty(String text) {
+    public static boolean isEmpty(String text) {
         return text == null || text.isEmpty();
     }
 
-    public static boolean notEmpty(String text) {
+    public static boolean isNotEmpty(String text) {
         return text != null && !text.isEmpty();
     }
 
@@ -41,9 +42,9 @@ public class Utils {
     }
 
     public static String generateDirectLink(Message msg, String limooUrl) {
-        if (notEmpty(msg.getWorkspaceKey()) && notEmpty(msg.getConversationId()) && notEmpty(msg.getId())) {
+        if (isNotEmpty(msg.getWorkspaceKey()) && isNotEmpty(msg.getConversationId()) && isNotEmpty(msg.getId())) {
             String directLinkUri;
-            if (notEmpty(msg.getThreadRootId())) {
+            if (isNotEmpty(msg.getThreadRootId())) {
                 directLinkUri = String.format(THREAD_DIRECT_LINK_URI_TEMPLATE,
                         msg.getWorkspaceKey(), msg.getConversationId(), msg.getThreadRootId(), msg.getId());
             } else {
@@ -78,12 +79,18 @@ public class Utils {
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(concatUris(storePath, fileName)))) {
                 writer.write(JacksonUtils.serializeObjectAsString(obj));
             } catch (IOException e) {
-                logger.error("Can't store msgToReactions cache", e);
+                logger.error("Can't store " + fileName + " cache", e);
             }
         });
     }
 
-    public static String getFixedEmoji(String emoji) {
-        return emoji.startsWith(EMOJI_WRAPPER) ? emoji : (EMOJI_WRAPPER + emoji + EMOJI_WRAPPER);
+    public static void fixMessageReactions(Message message) {
+        for (Reaction reaction : message.getReactions()) {
+            String emojiName = reaction.getEmojiName();
+            if (!emojiName.startsWith(EMOJI_WRAPPER))
+                emojiName = EMOJI_WRAPPER + emojiName + EMOJI_WRAPPER;
+            reaction.setEmojiName(emojiName);
+        }
     }
+
 }
