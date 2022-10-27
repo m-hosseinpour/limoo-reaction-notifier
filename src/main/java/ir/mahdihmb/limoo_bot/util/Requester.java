@@ -43,10 +43,6 @@ public class Requester {
         workspace.getRequester().executeApiPost(uri, JacksonUtils.createEmptyObjectNode(), workspace.getWorker());
     }
 
-    public static void likeMessage(Message message) throws LimooException {
-        reactMessage(message, Utils.LIKE_REACTION);
-    }
-
     public static List<User> getUsersByIds(Workspace workspace, Set<String> userIds) throws LimooException {
         ArrayNode userIdsNode = JacksonUtils.getObjectMapper().createArrayNode();
         for (String userId : userIds)

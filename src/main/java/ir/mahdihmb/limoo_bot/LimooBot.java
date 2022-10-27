@@ -9,6 +9,7 @@ import ir.limoo.driver.util.JacksonUtils;
 import ir.mahdihmb.limoo_bot.core.ConfigService;
 import ir.mahdihmb.limoo_bot.entity.Message;
 import ir.mahdihmb.limoo_bot.entity.Reaction;
+import ir.mahdihmb.limoo_bot.entity.StoreDTO;
 import ir.mahdihmb.limoo_bot.entity.User;
 import ir.mahdihmb.limoo_bot.event.MessageCreatedEventListener;
 import ir.mahdihmb.limoo_bot.event.MessageEditedEventListener;
@@ -27,8 +28,7 @@ public class LimooBot {
 
     private static final Logger logger = LoggerFactory.getLogger(LimooBot.class);
 
-    private static final String REACTIONS_STORE_FILE = "reactions.data";
-    private static final String USERS_STORE_FILE = "users.data";
+    private static final String STORE_FILE = "reaction_notifier.data";
 
     private static final String START_COMMAND = "/start";
     private static final String STOP_COMMAND = "/stop";
@@ -40,8 +40,7 @@ public class LimooBot {
     private final String storePath;
     private final String adminUserId;
 
-    private Map<String, List<Reaction>> msgToReactions;
-    private Set<String> activeUsers;
+    private StoreDTO store = new StoreDTO();
 
     public LimooBot(String limooUrl, String botUsername, String botPassword) throws LimooException, IOException {
         this.limooUrl = limooUrl;
@@ -49,7 +48,7 @@ public class LimooBot {
         botId = limooDriver.getBot().getId();
         storePath = ConfigService.get("store.path");
         adminUserId = ConfigService.get("admin.userId");
-        loadOrCreateStoredData();
+        loadStoreData();
     }
 
     public void run() {
@@ -62,15 +61,15 @@ public class LimooBot {
             if (message.getUserId().equals(botId))
                 return;
 
+            doAutoReactions(message);
+
             if (ConversationType.DIRECT.equals(conversation.getConversationType())) {
                 handleDirectMessage(message, conversation);
             } else {
                 fixMessageReactions(message);
-                msgToReactions.put(message.getId(), message.getReactions());
-                saveMsgToReactions();
+                store.msgToReactions.put(message.getId(), message.getReactions());
+                saveStoreData();
             }
-
-            doAutoReactions(message);
         } catch (Throwable e) {
             logger.error("", e);
         } finally {
@@ -91,31 +90,38 @@ public class LimooBot {
         String userId = message.getUserId();
         if (userId.equals(adminUserId)) {
             if ("/report".equals(message.getText())) {
-                List<User> users = Requester.getUsersByIds(message.getWorkspace(), activeUsers);
+                List<User> users = Requester.getUsersByIds(message.getWorkspace(), store.activeUsers);
                 String usersDisplayNameText = users.stream().map(User::getDisplayName).collect(Collectors.joining("\n- ", "- ", "\n"));
-                conversation.send("Active users:\n" + usersDisplayNameText + "Cached items: " + msgToReactions.size());
+                conversation.send("Active users:\n" + usersDisplayNameText + "Cached items: " + store.msgToReactions.size());
                 return;
             }
         }
 
-        if (message.getText().startsWith(START_COMMAND) && !activeUsers.contains(userId)) {
-            activeUsers.add(userId);
-            saveActiveUsers();
-            Requester.likeMessage(message);
-        } else if (message.getText().startsWith(STOP_COMMAND) && activeUsers.contains(userId)) {
-            activeUsers.remove(userId);
-            saveActiveUsers();
-            Requester.likeMessage(message);
+        if (message.getText().startsWith(START_COMMAND) && !store.activeUsers.contains(userId)) {
+            store.activeUsers.add(userId);
+            try {
+                saveStoreData();
+                Requester.reactMessage(message, LIKE_REACTION);
+            } catch (IOException e) {
+                Requester.reactMessage(message, WARNING_REACTION);
+            }
+        } else if (message.getText().startsWith(STOP_COMMAND) && store.activeUsers.contains(userId)) {
+            store.activeUsers.remove(userId);
+            try {
+                saveStoreData();
+                Requester.reactMessage(message, LIKE_REACTION);
+            } catch (IOException e) {
+                Requester.reactMessage(message, WARNING_REACTION);
+            }
         } else {
             String msgLastPart;
-            if (activeUsers.contains(userId)) {
+            if (store.activeUsers.contains(userId)) {
                 msgLastPart = String.format("You are currently a member of bot. To stop: [%1$s](%1$s)", STOP_COMMAND);
             } else {
                 msgLastPart = String.format("To start: [%1$s](%1$s)", START_COMMAND);
             }
             conversation.send(
                     "This bot notifies you of reactions to your messages (in groups where bot is added).\n" +
-                    "Does not work on messages that created before the bot was added (unless they are edited).\n" +
                     "***\n" +
                     msgLastPart
             );
@@ -127,18 +133,19 @@ public class LimooBot {
             if (ConversationType.DIRECT.equals(conversation.getConversationType()))
                 return;
 
-            List<Reaction> preReactions = msgToReactions.get(message.getId());
+            List<Reaction> preReactions = store.msgToReactions.get(message.getId());
 
             fixMessageReactions(message);
-            msgToReactions.put(message.getId(), message.getReactions());
-            saveMsgToReactions();
+            store.msgToReactions.put(message.getId(), message.getReactions());
+            saveStoreData();
 
             String ownerUserId = message.getUserId();
-            if (preReactions == null || !activeUsers.contains(ownerUserId))
+            if (!store.activeUsers.contains(ownerUserId))
                 return;
 
             List<Reaction> newReactions = new ArrayList<>(message.getReactions());
-            newReactions.removeAll(preReactions);
+            if (preReactions != null)
+                newReactions.removeAll(preReactions);
 
             Set<String> userIds = newReactions.stream().map(Reaction::getUserId).collect(Collectors.toSet());
             List<User> users = Requester.getUsersByIds(message.getWorkspace(), userIds);
@@ -171,40 +178,54 @@ public class LimooBot {
         }
     }
 
-    private void saveActiveUsers() {
-        saveDataFileAsync(storePath, USERS_STORE_FILE, activeUsers);
+    private void saveStoreData() throws IOException {
+        saveDataFile(storePath, STORE_FILE, store);
     }
 
-    private void saveMsgToReactions() {
-        saveDataFileAsync(storePath, REACTIONS_STORE_FILE, msgToReactions);
-    }
-
-    private void loadOrCreateStoredData() throws IOException {
-        msgToReactions = new HashMap<>();
-        loadOrCreateDataFile(storePath, REACTIONS_STORE_FILE, msgToReactions);
-
-        activeUsers = new HashSet<>();
-        loadOrCreateDataFile(storePath, USERS_STORE_FILE, activeUsers);
-    }
-
-    private void doAutoReactions(Message message) throws LimooException {
-        String trimmedText = message.getText().trim();
-        if (YEKKEKHANI_MENTION.equals(trimmedText)) {
-            Requester.reactMessage(message, TROPHY_REACTION);
-            return;
+    private void loadStoreData() throws IOException {
+        JsonNode storeNode = loadDataFile(storePath, STORE_FILE);
+        if (storeNode != null) {
+            store = JacksonUtils.deserializeObject(storeNode, StoreDTO.class);
+            store.initNullProps();
         }
+    }
 
-        if (HOSSEINPOUR_MENTION.equals(trimmedText)) {
-            Requester.reactMessage(message, GHOST_REACTION);
-            return;
+    private void doAutoReactions(Message message) {
+        try {
+            String trimmedText = message.getText().trim();
+            if (YEKKEKHANI_MENTION.equals(trimmedText)) {
+                Requester.reactMessage(message, TROPHY_REACTION);
+                return;
+            }
+
+            if (HOSSEINPOUR_MENTION.equals(trimmedText)) {
+                Requester.reactMessage(message, GHOST_REACTION);
+                return;
+            }
+
+            Set<String> mentionSet = new HashSet<>(message.getMentions());
+            if (mentionSet.size() == 1 && TAVASSOLIAN_UID.equals(mentionSet.iterator().next())) {
+                Calendar calendar = Calendar.getInstance();
+                int hour = calendar.get(Calendar.HOUR_OF_DAY);
+                boolean isNotWorking = hour < 8 || hour >= 16 || Calendar.FRIDAY == calendar.get(Calendar.DAY_OF_WEEK);
+                Requester.reactMessage(message, isNotWorking ? SLEEPING_REACTION : HUGGING_FACE_REACTION);
+            }
+        } catch (Throwable e) {
+            logger.error("", e);
         }
+    }
 
-        Set<String> mentionSet = new HashSet<>(message.getMentions());
-        if (mentionSet.size() == 1 && TAVASSOLIAN_UID.equals(mentionSet.iterator().next())) {
-            Calendar calendar = Calendar.getInstance();
-            int hour = calendar.get(Calendar.HOUR_OF_DAY);
-            boolean isNotWorking = hour < 8 || hour >= 16 || Calendar.FRIDAY == calendar.get(Calendar.DAY_OF_WEEK);
-            Requester.reactMessage(message, isNotWorking ? SLEEPING_REACTION : HUGGING_FACE_REACTION);
+    private void fixMessageReactions(Message message) {
+        if (message.getReactions() == null) {
+            message.setReactions(Collections.emptyList());
+        }
+        for (Reaction reaction : message.getReactions()) {
+            String emojiName = reaction.getEmojiName();
+            if (!emojiName.startsWith(EMOJI_WRAPPER))
+                emojiName = EMOJI_WRAPPER + emojiName;
+            if (!emojiName.endsWith(EMOJI_WRAPPER))
+                emojiName = emojiName + EMOJI_WRAPPER;
+            reaction.setEmojiName(emojiName);
         }
     }
 

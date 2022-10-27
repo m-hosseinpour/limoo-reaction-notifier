@@ -1,14 +1,12 @@
 package ir.mahdihmb.limoo_bot.util;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import ir.limoo.driver.util.JacksonUtils;
 import ir.mahdihmb.limoo_bot.entity.Message;
-import ir.mahdihmb.limoo_bot.entity.Reaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.util.Collections;
-import java.util.concurrent.CompletableFuture;
 
 public class Utils {
 
@@ -21,6 +19,7 @@ public class Utils {
 
     public static final String EMOJI_WRAPPER = ":";
     public static final String LIKE_REACTION = "+1";
+    public static final String WARNING_REACTION = "warning";
     public static final String TROPHY_REACTION = "trophy";
     public static final String GHOST_REACTION = "ghost";
     public static final String SLEEPING_REACTION = "sleeping";
@@ -57,43 +56,29 @@ public class Utils {
         return null;
     }
 
-    public static void loadOrCreateDataFile(String storePath, String fileName, Object obj) throws IOException {
+    public static JsonNode loadDataFile(String storePath, String fileName) throws IOException {
         File usersFile = new File(concatUris(storePath, fileName));
-        if (!usersFile.exists()) {
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(usersFile))) {
-                writer.write(JacksonUtils.serializeObjectAsString(obj));
+        if (!usersFile.exists())
+            return null;
+
+        StringBuilder fileContent = new StringBuilder();
+        try (FileReader fileReader = new FileReader(usersFile);
+             BufferedReader reader = new BufferedReader(fileReader)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                fileContent.append(line).append("\n");
             }
-        } else {
-            StringBuilder fileContent = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new FileReader(usersFile))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    fileContent.append(line).append("\n");
-                }
-            }
-            JacksonUtils.deserializeIntoObject(JacksonUtils.convertStringToJsonNode(fileContent.toString()), obj);
         }
+        return JacksonUtils.convertStringToJsonNode(fileContent.toString());
     }
 
-    public static void saveDataFileAsync(String storePath, String fileName, Object obj) {
-        CompletableFuture.runAsync(() -> {
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(concatUris(storePath, fileName)))) {
-                writer.write(JacksonUtils.serializeObjectAsString(obj));
-            } catch (IOException e) {
-                logger.error("Can't store " + fileName + " cache", e);
-            }
-        });
-    }
-
-    public static void fixMessageReactions(Message message) {
-        if (message.getReactions() == null) {
-            message.setReactions(Collections.emptyList());
-        }
-        for (Reaction reaction : message.getReactions()) {
-            String emojiName = reaction.getEmojiName();
-            if (!emojiName.startsWith(EMOJI_WRAPPER))
-                emojiName = EMOJI_WRAPPER + emojiName + EMOJI_WRAPPER;
-            reaction.setEmojiName(emojiName);
+    public static void saveDataFile(String storePath, String fileName, Object obj) throws IOException {
+        try (FileWriter fileWriter = new FileWriter(concatUris(storePath, fileName));
+             BufferedWriter writer = new BufferedWriter(fileWriter)) {
+            writer.write(JacksonUtils.serializeObjectAsString(obj));
+        } catch (IOException e) {
+            logger.error("Can't store " + fileName + " cache", e);
+            throw e;
         }
     }
 
