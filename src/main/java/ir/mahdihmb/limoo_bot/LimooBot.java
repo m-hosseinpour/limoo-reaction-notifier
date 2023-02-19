@@ -2,7 +2,9 @@ package ir.mahdihmb.limoo_bot;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import ir.limoo.driver.LimooDriver;
+import ir.limoo.driver.entity.Conversation;
 import ir.limoo.driver.entity.ConversationType;
+import ir.limoo.driver.entity.User;
 import ir.limoo.driver.exception.LimooException;
 import ir.limoo.driver.util.JacksonUtils;
 import ir.mahdihmb.limoo_bot.core.ConfigService;
@@ -211,7 +213,7 @@ public class LimooBot {
         } else {
             msgLastPart = String.format(MessageService.get("help.notActiveUser.startNotif"), START_COMMAND);
         }
-        conversation.send(MessageService.get("help.description") + "\n" + msgLastPart);
+        conversation.send(MessageService.get("help.description") + "\n***\n" + msgLastPart);
     }
 
     private void fixMessageReactions(Message message) {

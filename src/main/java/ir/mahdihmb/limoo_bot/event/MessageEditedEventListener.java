@@ -1,11 +1,11 @@
 package ir.mahdihmb.limoo_bot.event;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import ir.limoo.driver.entity.Conversation;
 import ir.limoo.driver.entity.ConversationType;
 import ir.limoo.driver.event.LimooEvent;
 import ir.limoo.driver.event.LimooEventListener;
 import ir.limoo.driver.util.JacksonUtils;
-import ir.mahdihmb.limoo_bot.entity.Conversation;
 import ir.mahdihmb.limoo_bot.entity.Message;
 
 import java.io.IOException;

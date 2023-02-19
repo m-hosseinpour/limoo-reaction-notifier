@@ -4,12 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import ir.limoo.driver.entity.ConversationType;
+import ir.limoo.driver.entity.User;
 import ir.limoo.driver.entity.Workspace;
 import ir.limoo.driver.exception.LimooException;
 import ir.limoo.driver.util.JacksonUtils;
 import ir.limoo.driver.util.MessageUtils;
 import ir.mahdihmb.limoo_bot.entity.Message;
-import ir.mahdihmb.limoo_bot.entity.User;
 
 import java.util.List;
 import java.util.Set;
