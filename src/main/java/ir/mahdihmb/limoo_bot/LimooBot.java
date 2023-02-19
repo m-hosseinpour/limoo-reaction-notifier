@@ -2,15 +2,12 @@ package ir.mahdihmb.limoo_bot;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import ir.limoo.driver.LimooDriver;
-import ir.limoo.driver.entity.Conversation;
 import ir.limoo.driver.entity.ConversationType;
 import ir.limoo.driver.exception.LimooException;
 import ir.limoo.driver.util.JacksonUtils;
 import ir.mahdihmb.limoo_bot.core.ConfigService;
-import ir.mahdihmb.limoo_bot.entity.Message;
-import ir.mahdihmb.limoo_bot.entity.Reaction;
-import ir.mahdihmb.limoo_bot.entity.StoreDTO;
-import ir.mahdihmb.limoo_bot.entity.User;
+import ir.mahdihmb.limoo_bot.core.MessageService;
+import ir.mahdihmb.limoo_bot.entity.*;
 import ir.mahdihmb.limoo_bot.event.MessageCreatedEventListener;
 import ir.mahdihmb.limoo_bot.event.MessageEditedEventListener;
 import ir.mahdihmb.limoo_bot.util.Requester;
@@ -32,7 +29,9 @@ public class LimooBot {
 
     private static final String START_COMMAND = "/start";
     private static final String STOP_COMMAND = "/stop";
-    private static final int TEXT_PREVIEW_LEN = 500;
+    public static final String REPORT_COMMAND = "/report";
+
+    private static final int TEXT_PREVIEW_LEN = 300;
 
     private final String limooUrl;
     private final LimooDriver limooDriver;
@@ -89,42 +88,17 @@ public class LimooBot {
     private void handleDirectMessage(Message message, Conversation conversation) throws LimooException {
         String userId = message.getUserId();
         if (userId.equals(adminUserId)) {
-            if ("/report".equals(message.getText())) {
-                List<User> users = Requester.getUsersByIds(message.getWorkspace(), store.activeUsers);
-                String usersDisplayNameText = users.stream().map(User::getDisplayName).collect(Collectors.joining("\n- ", "- ", "\n"));
-                conversation.send("Active users:\n" + usersDisplayNameText + "Cached items: " + store.msgToReactions.size());
+            if (handleAdminCommand(message, conversation)) {
                 return;
             }
         }
 
         if (message.getText().startsWith(START_COMMAND) && !store.activeUsers.contains(userId)) {
-            store.activeUsers.add(userId);
-            try {
-                saveStoreData();
-                Requester.reactMessage(message, LIKE_REACTION);
-            } catch (IOException e) {
-                Requester.reactMessage(message, WARNING_REACTION);
-            }
+            startCommand(message, userId);
         } else if (message.getText().startsWith(STOP_COMMAND) && store.activeUsers.contains(userId)) {
-            store.activeUsers.remove(userId);
-            try {
-                saveStoreData();
-                Requester.reactMessage(message, LIKE_REACTION);
-            } catch (IOException e) {
-                Requester.reactMessage(message, WARNING_REACTION);
-            }
+            stopCommand(message, userId);
         } else {
-            String msgLastPart;
-            if (store.activeUsers.contains(userId)) {
-                msgLastPart = String.format("You are currently a member of bot. To stop: [%1$s](%1$s)", STOP_COMMAND);
-            } else {
-                msgLastPart = String.format("To start: [%1$s](%1$s)", START_COMMAND);
-            }
-            conversation.send(
-                    "This bot notifies you of reactions to your messages (in groups where bot is added).\n" +
-                    "***\n" +
-                    msgLastPart
-            );
+            sendHelp(conversation, userId);
         }
     }
 
@@ -151,27 +125,12 @@ public class LimooBot {
             List<User> users = Requester.getUsersByIds(message.getWorkspace(), userIds);
             Map<String, User> userMap = users.stream().collect(Collectors.toMap(User::getId, Function.identity()));
 
-            for (Reaction newReaction : newReactions) {
-                User user = userMap.get(newReaction.getUserId());
-                if (user != null && user.isBot() || newReaction.getUserId().equals(ownerUserId))
+            for (Reaction reaction : newReactions) {
+                User user = userMap.get(reaction.getUserId());
+                if (user != null && user.isBot() || reaction.getUserId().equals(ownerUserId))
                     continue;
 
-                String userDisplayName = user != null ? user.getDisplayName() : "Someone";
-
-                String textPreview = message.getText().replaceAll("`", "");
-                if (textPreview.length() > TEXT_PREVIEW_LEN) {
-                    textPreview = textPreview.substring(0, TEXT_PREVIEW_LEN) + "...";
-                }
-
-                JsonNode directNode = Requester.getOrCreateDirect(message.getWorkspace(), botId, ownerUserId);
-                Conversation direct = new Conversation(message.getWorkspace());
-                JacksonUtils.deserializeIntoObject(directNode, direct);
-
-                direct.send(userDisplayName + ": " + newReaction.getEmojiName() + "\n" +
-                        "```\n" +
-                        textPreview + "\n" +
-                        "```\n" +
-                        generateDirectLink(message, limooUrl));
+                sendReactionNotif(message, conversation, user, reaction, ownerUserId);
             }
         } catch (Throwable e) {
             logger.error("", e);
@@ -215,6 +174,46 @@ public class LimooBot {
         }
     }
 
+    private boolean handleAdminCommand(Message message, Conversation conversation) throws LimooException {
+        if (REPORT_COMMAND.equals(message.getText())) {
+            List<User> users = Requester.getUsersByIds(message.getWorkspace(), store.activeUsers);
+            String usersDisplayNameText = users.stream().map(User::getDisplayName).collect(Collectors.joining("\n- ", "- ", "\n"));
+            conversation.send("Cached items: " + store.msgToReactions.size() + "\nActive users:\n" + usersDisplayNameText);
+            return true;
+        }
+        return false;
+    }
+
+    private void startCommand(Message message, String userId) throws LimooException {
+        store.activeUsers.add(userId);
+        try {
+            saveStoreData();
+            Requester.reactMessage(message, LIKE_REACTION);
+        } catch (IOException e) {
+            Requester.reactMessage(message, WARNING_REACTION);
+        }
+    }
+
+    private void stopCommand(Message message, String userId) throws LimooException {
+        store.activeUsers.remove(userId);
+        try {
+            saveStoreData();
+            Requester.reactMessage(message, LIKE_REACTION);
+        } catch (IOException e) {
+            Requester.reactMessage(message, WARNING_REACTION);
+        }
+    }
+
+    private void sendHelp(Conversation conversation, String userId) throws LimooException {
+        String msgLastPart;
+        if (store.activeUsers.contains(userId)) {
+            msgLastPart = String.format(MessageService.get("help.activeUser.stopNotif"), STOP_COMMAND);
+        } else {
+            msgLastPart = String.format(MessageService.get("help.notActiveUser.startNotif"), START_COMMAND);
+        }
+        conversation.send(MessageService.get("help.description") + "\n" + msgLastPart);
+    }
+
     private void fixMessageReactions(Message message) {
         if (message.getReactions() == null) {
             message.setReactions(Collections.emptyList());
@@ -227,6 +226,27 @@ public class LimooBot {
                 emojiName = emojiName + EMOJI_WRAPPER;
             reaction.setEmojiName(emojiName);
         }
+    }
+
+    private void sendReactionNotif(Message message, Conversation conversation,
+                                   User user, Reaction reaction, String ownerUserId)
+            throws LimooException, IOException {
+        String userDisplayName = user != null ? user.getDisplayName() : MessageService.get("reactionNotif.someone");
+
+        String msgPreview = message.getText().replaceAll("`", "");
+        if (msgPreview.length() > TEXT_PREVIEW_LEN) {
+            msgPreview = msgPreview.substring(0, TEXT_PREVIEW_LEN) + "...";
+        }
+
+        String text = bold(userDisplayName) + ": " + reaction.getEmojiName() + "\n" +
+                codeBlock(msgPreview) + "\n" +
+                SPEECH_BALLOON_EMOJI + " " + italic(MessageService.get("reactionNotif.group") + ": ") + conversation.getDisplayName() + "\n" +
+                LINK_EMOJI + " " + italic(MessageService.get("reactionNotif.directLink") + ": ") + generateDirectLink(message, limooUrl);
+
+        JsonNode directNode = Requester.getOrCreateDirect(message.getWorkspace(), botId, ownerUserId);
+        Conversation direct = new Conversation(message.getWorkspace());
+        JacksonUtils.deserializeIntoObject(directNode, direct);
+        direct.send(text);
     }
 
 }

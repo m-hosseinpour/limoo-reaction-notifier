@@ -24,8 +24,9 @@ public class Utils {
     public static final String GHOST_REACTION = "ghost";
     public static final String SLEEPING_REACTION = "sleeping";
     public static final String HUGGING_FACE_REACTION = "hugging_face";
+    public static final String SPEECH_BALLOON_EMOJI = ":speech_balloon:";
     public static final String LINK_EMOJI = ":link:";
-    public static final String MARKDOWN_LINK_TEMPLATE = "[%s](%s)";
+
     public static final String DIRECT_LINK_URI_TEMPLATE = "workspace/%s/conversation/%s/message/%s";
     public static final String THREAD_DIRECT_LINK_URI_TEMPLATE = "workspace/%s/conversation/%s/thread/%s/message/%s";
 
@@ -51,7 +52,7 @@ public class Utils {
                 directLinkUri = String.format(DIRECT_LINK_URI_TEMPLATE,
                         msg.getWorkspaceKey(), msg.getConversationId(), msg.getId());
             }
-            return String.format(MARKDOWN_LINK_TEMPLATE, LINK_EMOJI, concatUris(limooUrl, directLinkUri));
+            return concatUris(limooUrl, directLinkUri);
         }
         return null;
     }
@@ -82,4 +83,15 @@ public class Utils {
         }
     }
 
+    public static String bold(String text) {
+        return "**" + text + "**";
+    }
+
+    public static String italic(String text) {
+        return "*" + text + "*";
+    }
+
+    public static String codeBlock(String text) {
+        return "```\n" + text + "\n```";
+    }
 }

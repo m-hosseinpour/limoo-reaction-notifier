@@ -1,11 +1,11 @@
 package ir.mahdihmb.limoo_bot.event;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import ir.limoo.driver.entity.Conversation;
 import ir.limoo.driver.entity.ConversationType;
 import ir.limoo.driver.event.LimooEvent;
 import ir.limoo.driver.event.LimooEventListener;
 import ir.limoo.driver.util.JacksonUtils;
+import ir.mahdihmb.limoo_bot.entity.Conversation;
 import ir.mahdihmb.limoo_bot.entity.Message;
 
 import java.io.IOException;
@@ -26,6 +26,7 @@ public interface MessageCreatedEventListener extends LimooEventListener {
         JacksonUtils.deserializeIntoObject(messageNode, message);
         ConversationType type = ConversationType.valueOfLabel(dataNode.get("conversation_type").asText());
         Conversation conversation = new Conversation(message.getConversationId(), type, event.getWorkspace());
+        conversation.setDisplayName(dataNode.get("conversation_display_name").asText());
         onMessageCreated(message, conversation);
         conversation.onNewMessage();
     }
