@@ -235,7 +235,9 @@ public class LimooBot {
             throws LimooException, IOException {
         String userDisplayName = user != null ? user.getDisplayName() : MessageService.get("reactionNotif.someone");
 
-        String msgPreview = message.getText().replaceAll("`", "");
+        String msgPreview = message.getText()
+                .replaceAll("`", "")
+                .replaceAll("#", "");
         if (msgPreview.length() > TEXT_PREVIEW_LEN) {
             msgPreview = msgPreview.substring(0, TEXT_PREVIEW_LEN) + "...";
         }
