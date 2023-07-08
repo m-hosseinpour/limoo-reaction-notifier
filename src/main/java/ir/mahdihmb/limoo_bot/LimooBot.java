@@ -62,8 +62,6 @@ public class LimooBot {
             if (message.getUserId().equals(botId))
                 return;
 
-            doAutoReactions(message);
-
             if (ConversationType.DIRECT.equals(conversation.getConversationType())) {
                 handleDirectMessage(message, conversation);
             } else {
@@ -148,31 +146,6 @@ public class LimooBot {
         if (storeNode != null) {
             store = JacksonUtils.deserializeObject(storeNode, StoreDTO.class);
             store.initNullProps();
-        }
-    }
-
-    private void doAutoReactions(Message message) {
-        try {
-            String trimmedText = message.getText().trim();
-            if (YEKKEKHANI_MENTION.equals(trimmedText)) {
-                Requester.reactMessage(message, TROPHY_REACTION);
-                return;
-            }
-
-            if (HOSSEINPOUR_MENTION.equals(trimmedText)) {
-                Requester.reactMessage(message, GHOST_REACTION);
-                return;
-            }
-
-            Set<String> mentionSet = new HashSet<>(message.getMentions());
-            if (mentionSet.size() == 1 && TAVASSOLIAN_UID.equals(mentionSet.iterator().next())) {
-                Calendar calendar = Calendar.getInstance();
-                int hour = calendar.get(Calendar.HOUR_OF_DAY);
-                boolean isNotWorking = hour < 8 || hour >= 16 || Calendar.FRIDAY == calendar.get(Calendar.DAY_OF_WEEK);
-                Requester.reactMessage(message, isNotWorking ? SLEEPING_REACTION : HUGGING_FACE_REACTION);
-            }
-        } catch (Throwable e) {
-            logger.error("", e);
         }
     }
 
