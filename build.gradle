@@ -41,11 +41,11 @@ task runBot(type: JavaExec) {
     group = "limoo-bot"
     description = "Run bot"
     classpath = sourceSets.main.runtimeClasspath
-    main = "ir.mahdihmb.limoo_bot.Main"
+    mainClass = "ir.mahdihmb.limoo_bot.Main"
 }
 
 jar  {
-    baseName = "${rootProject.name}"
+    archiveBaseName.set("${rootProject.name}")
 
     from configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
 
